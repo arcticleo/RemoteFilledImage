@@ -1,11 +1,13 @@
 import SwiftUI
 
 public enum AspectRatio: CGFloat {
-    case square = 1
-    case threeToFour = 0.75
-    case fourToThree = 1.75
     case sixteenToNine = 1.78
     case fiveToThree = 1.67
+    case fourToThree = 1.33
+    case square = 1
+    case threeToFour = 0.75
+    case threeToFive = 0.6
+    case nineToSixteen = 0.56
 }
 
 public struct FitToAspectRatio: ViewModifier {
@@ -42,25 +44,49 @@ public extension Image {
     }
 }
 
-public struct RemoteFilledImage: View {
+struct PlaceholderView: View {
+    let aspectRatio: AspectRatio
+    var body: some View {
+        ZStack {
+            Image("gray.fill")
+                .fitToAspectRatio(aspectRatio)
+            ProgressView()
+        }
+    }
+}
+
+struct RemoteFilledImage<Placeholder: View>: View {
     let imageURL: String
     let aspectRatio: AspectRatio
-
-    public init(imageURL: String, aspectRatio: AspectRatio) {
+    let placeholder: () -> Placeholder
+    
+    // Initializer with custom placeholder
+    init(imageURL: String, aspectRatio: AspectRatio, @ViewBuilder placeholder: @escaping () -> Placeholder) {
         self.imageURL = imageURL
         self.aspectRatio = aspectRatio
+        self.placeholder = placeholder
+    }
+    
+    // Initializer with default placeholder
+    init(imageURL: String, aspectRatio: AspectRatio) where Placeholder == PlaceholderView {
+        self.imageURL = imageURL
+        self.aspectRatio = aspectRatio
+        self.placeholder = { PlaceholderView(aspectRatio: aspectRatio) }
     }
     
     public var body: some View {
         Group {
-            AsyncImage(url: URL(string: imageURL), scale: aspectRatio.rawValue) { image in
-                image
-                    .fitToAspectRatio(aspectRatio)
-            } placeholder: {
-                ZStack {
-                    Image("gray.fill")
+            AsyncImage(url: URL(string: imageURL)) { phase in
+                switch phase {
+                case .empty:
+                    placeholder()
+                case .success(let image):
+                    image
                         .fitToAspectRatio(aspectRatio)
-                    ProgressView()
+                case .failure:
+                    placeholder()
+                @unknown default:
+                    placeholder()
                 }
             }
             .clipped()
